@@ -283,8 +283,20 @@ const ANCHORS = [
 ];
 
 /* ── BOOT ── */
+// IMPORTANT: fill in your actual GitHub username, repo name, and file name
+// below. We load the splat file from raw.githubusercontent.com instead of
+// a normal relative path, because GitHub Pages was gzip-compressing this
+// file and corrupting large transfers. raw.githubusercontent.com serves
+// files through different infrastructure and sends proper CORS headers,
+// which sidesteps that bug.
+const RAW_SPLAT_URL = 'https://raw.githubusercontent.com/skokubpro/digital-twin-prototype/main/3d_livingroom.splat';
+
 async function findSplat() {
-  for (const f of ['scene.splat','scene.ply','scene.ksplat']) {
+  // Try the raw.githubusercontent.com URL first (see RAW_SPLAT_URL above).
+  // try { const r = await fetch(RAW_SPLAT_URL, {method:'HEAD'}); if (r.ok) return RAW_SPLAT_URL; } catch(_) {}
+  // Fallbacks: a regular relative file, in case you've moved back to
+  // hosting it directly through GitHub Pages.
+  for (const f of ['scene.zip','scene.splat','scene.ply','scene.ksplat']) {
     try { const r = await fetch(f,{method:'HEAD'}); if (r.ok) return f; } catch(_) {}
   }
   return null;
@@ -336,7 +348,12 @@ async function boot() {
     await viewer.addSplatScene(file, {
       'showLoadingUI': true,
       'splatAlphaRemovalThreshold': 5,
-      'progressiveLoad': false
+      'progressiveLoad': false,
+      // Force the real format here, since the .zip rename trick (see
+      // findSplat above) makes the filename lie about what's inside.
+      // Change to GaussianSplats3D.SceneFormat.Ply if your file is
+      // actually PLY data renamed to scene.zip instead of Splat data.
+      'format': file.endsWith('.zip') ? GaussianSplats3D.SceneFormat.Splat : undefined
     });
 
     viewer.start();

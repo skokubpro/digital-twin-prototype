@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Living Room · Digital Twin</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three":            "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/":    "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "GaussianSplats3D": "https://unpkg.com/@mkkellogg/gaussian-splats-3d@0.4.6/build/gaussian-splats-3d.module.js"
+  }
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg:     #07090f;
+  --panel:  rgba(10,15,25,0.88);
+  --border: rgba(255,255,255,0.08);
+  --bhi:    rgba(255,255,255,0.16);
+  --text:   #dde4ef;
+  --muted:  #6b7a92;
+  --good:   #3ecfb2;
+  --warn:   #f0a832;
+  --bad:    #e84d5a;
+  --font:   'Space Grotesk', sans-serif;
+  --mono:   'JetBrains Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width:100%; height:100%; background:var(--bg); color:var(--text); font-family:var(--font); overflow:hidden; }
+
+/* PANEL */
+.panel {
+  position: fixed; z-index: 20;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: saturate(1.4) blur(20px);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+  pointer-events: none;
+}
+.panel-title {
+  font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--muted); display:flex; align-items:center; gap:8px;
+  padding:12px 16px 10px; border-bottom:1px solid var(--border);
+}
+.live-dot {
+  width:6px; height:6px; border-radius:50%; background:var(--good); flex-shrink:0;
+  animation: lp 2s ease-in-out infinite;
+}
+@keyframes lp { 0%,100%{box-shadow:0 0 0 0 rgba(62,207,178,.5);} 50%{box-shadow:0 0 0 5px rgba(62,207,178,0);} }
+
+/* TOP BAR */
+#topbar {
+  top:0; left:0; right:0; height:48px;
+  border-radius:0; border-left:none; border-right:none; border-top:none;
+  display:flex; align-items:center; padding:0 20px; gap:16px;
+}
+.tb-logo  { font-size:13px; font-weight:700; color:var(--good); letter-spacing:.04em; }
+.tb-sep   { width:1px; height:18px; background:var(--border); }
+.tb-item  { font-size:11px; }
+.tb-label { color:var(--muted); margin-bottom:1px; }
+.tb-val   { font-weight:600; }
+.tb-space { flex:1; }
+#tb-clock { font-family:var(--mono); font-size:12px; color:var(--muted); }
+.tb-badge { display:flex; align-items:center; gap:6px; font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--good); }
+
+/* SENSOR PANEL */
+#sensor-panel { top:60px; left:16px; width:228px; max-height:calc(100vh - 80px); overflow-y:auto; }
+.sensor-row   { padding:9px 14px; border-bottom:1px solid var(--border); }
+.sensor-row:last-child { border-bottom:none; }
+.sr-top   { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
+.sr-left  { display:flex; align-items:center; gap:6px; }
+.sr-icon  { font-size:13px; }
+.sr-label { font-size:11px; color:var(--muted); }
+.sr-val   { font-family:var(--mono); font-size:13px; font-weight:700; }
+.sr-sub   { font-size:9px; color:var(--muted); margin-bottom:4px; }
+.sr-bar   { height:2px; background:rgba(255,255,255,.07); border-radius:2px; overflow:hidden; }
+.sr-bar-fill { height:100%; border-radius:2px; transition:width .9s ease, background .4s; }
+.sparkline { display:block; width:100%; height:20px; opacity:.7; margin-bottom:3px; }
+.v-good { color:var(--good); } .v-warn { color:var(--warn); } .v-bad { color:var(--bad); }
+.fg { background:var(--good); } .fw { background:var(--warn); } .fb { background:var(--bad); }
+
+/* DECISION PANEL */
+#decision-panel { bottom:16px; right:16px; width:288px; }
+.rec-item  { display:flex; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); }
+.rec-item:last-child { border-bottom:none; }
+.ri-icon   { width:26px; height:26px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; }
+.ri-good   { background:rgba(62,207,178,.12); }
+.ri-warn   { background:rgba(240,168,50,.12); }
+.ri-bad    { background:rgba(232,77,90,.12); }
+.rec-body  { flex:1; min-width:0; }
+.rec-title { font-size:11px; font-weight:600; margin-bottom:2px; }
+.rec-desc  { font-size:10px; color:var(--muted); line-height:1.5; }
+.rec-conf  { display:inline-block; margin-top:3px; font-size:9px; font-family:var(--mono); color:var(--muted); letter-spacing:.06em; }
+
+/* INFO BAR */
+#info-bar {
+  bottom:16px; left:50%; transform:translateX(-50%);
+  padding:8px 18px; font-size:11px; color:var(--muted);
+  white-space:nowrap; display:flex; gap:20px; align-items:center;
+}
+
+/* 3D ANCHOR BADGES */
+.ab {
+  position:fixed; z-index:30;
+  transform: translate(-50%, -100%);
+  pointer-events:none; display:none;
+}
+.ab-card {
+  background:rgba(7,9,15,0.92);
+  border:1px solid var(--bhi);
+  border-radius:9px; padding:7px 11px;
+  backdrop-filter:blur(16px);
+  display:flex; align-items:center; gap:7px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.6);
+  min-width:110px; position:relative;
+}
+.ab-card::before {
+  content:''; position:absolute; top:0; left:10px; right:10px;
+  height:2px; border-radius:2px; background:var(--ac);
+}
+.ab-card::after {
+  content:''; position:absolute; bottom:-10px; left:50%; transform:translateX(-50%);
+  width:1px; height:10px; background:var(--ac); opacity:.5;
+}
+.ab-icon  { font-size:15px; flex-shrink:0; }
+.ab-label { font-size:9px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+.ab-val   { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--good); line-height:1.1; }
+.ab-val.w { color:var(--warn); }
+.ab-val.b { color:var(--bad); }
+
+.ab-dot {
+  position:fixed; z-index:29;
+  width:8px; height:8px; border-radius:50%;
+  transform:translate(-50%,-50%);
+  pointer-events:none; display:none;
+  box-shadow:0 0 0 3px rgba(62,207,178,.2);
+  background: var(--ac);
+}
+
+/* LOADING OVERLAY */
+#overlay {
+  position:fixed; inset:0; z-index:100; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:18px; text-align:center; padding:40px; transition:opacity .6s;
+}
+#overlay.fade { opacity:0; pointer-events:none; }
+#overlay.gone { display:none; }
+.ov-eyebrow { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.ov-title   { font-size:24px; font-weight:700; color:var(--good); }
+.ov-sub     { font-size:13px; color:var(--muted); max-width:420px; line-height:1.75; }
+.ov-code    {
+  font-family:var(--mono); font-size:12px; text-align:left;
+  background:rgba(255,255,255,.05); border:1px solid var(--border);
+  border-radius:10px; padding:14px 20px; color:var(--good);
+  white-space:pre; line-height:1.8;
+}
+.ov-err { color:var(--bad); font-size:11px; font-family:var(--mono); max-width:480px; line-height:1.6; }
+.spinner { width:32px; height:32px; border:2px solid rgba(62,207,178,.15); border-top-color:var(--good); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+::-webkit-scrollbar { width:3px; }
+::-webkit-scrollbar-thumb { background:var(--bhi); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div id="overlay">
+  <div class="ov-eyebrow">Research Prototype · 2025</div>
+  <div class="ov-title"  id="ov-title">Living Room Digital Twin</div>
+  <div class="spinner"   id="ov-spin"  style="display:none"></div>
+  <div class="ov-sub"    id="ov-sub">
+    Place your splat file in this folder renamed to <strong>scene.splat</strong><br>
+    then run <strong>server.py</strong> and open <strong>http://localhost:8000</strong>
+  </div>
+  <div class="ov-code" id="ov-code">digital-twin/
+  index.html
+  server.py
+  scene.splat   ← your file here</div>
+  <div class="ov-err" id="ov-err" style="display:none"></div>
+</div>
+
+<!-- TOP BAR -->
+<div id="topbar" class="panel">
+  <span class="tb-logo">Digital Twin</span>
+  <div class="tb-sep"></div>
+  <div class="tb-item"><div class="tb-label">SPACE</div><div class="tb-val">Living Room · Espoo</div></div>
+  <div class="tb-sep"></div>
+  <div class="tb-item"><div class="tb-label">SENSORS</div><div class="tb-val">5 Active</div></div>
+  <div class="tb-sep"></div>
+  <div class="tb-item"><div class="tb-label">UPDATE RATE</div><div class="tb-val">3 s</div></div>
+  <div class="tb-space"></div>
+  <span id="tb-clock">--:--:--</span>
+  <div class="tb-sep"></div>
+  <div class="tb-badge"><span class="live-dot"></span>LIVE</div>
+</div>
+
+<!-- SENSOR SUMMARY PANEL -->
+<div id="sensor-panel" class="panel">
+  <div class="panel-title"><span class="live-dot"></span>Live Sensor Feed</div>
+
+  <div class="sensor-row">
+    <div class="sr-top">
+      <div class="sr-left"><span class="sr-icon">🌡️</span><span class="sr-label">Temperature</span></div>
+      <span id="sv-temp" class="sr-val v-good">--</span>
+    </div>
+    <div class="sr-sub">Radiator · window wall</div>
+    <canvas id="spark-temp" class="sparkline" height="20"></canvas>
+    <div class="sr-bar"><div id="bar-temp" class="sr-bar-fill fg" style="width:0%"></div></div>
+  </div>
+
+  <div class="sensor-row">
+    <div class="sr-top">
+      <div class="sr-left"><span class="sr-icon">👥</span><span class="sr-label">Occupancy</span></div>
+      <span id="sv-occ" class="sr-val v-good">--</span>
+    </div>
+    <div class="sr-sub">PIR sensor · room centre</div>
+    <canvas id="spark-occ" class="sparkline" height="20"></canvas>
+    <div class="sr-bar"><div id="bar-occ" class="sr-bar-fill fg" style="width:0%"></div></div>
+  </div>
+
+  <div class="sensor-row">
+    <div class="sr-top">
+      <div class="sr-left"><span class="sr-icon">🔌</span><span class="sr-label">TV Device</span></div>
+      <span id="sv-dev" class="sr-val v-good">--</span>
+    </div>
+    <div class="sr-sub" id="ss-dev">Smart plug · media unit</div>
+    <div class="sr-bar"><div id="bar-dev" class="sr-bar-fill fg" style="width:0%"></div></div>
+  </div>
+
+  <div class="sensor-row">
+    <div class="sr-top">
+      <div class="sr-left"><span class="sr-icon">🧊</span><span class="sr-label">Freezer</span></div>
+      <span id="sv-frz" class="sr-val v-good">--</span>
+    </div>
+    <div class="sr-sub" id="ss-frz">Compressor OFF · door wall</div>
+    <canvas id="spark-frz" class="sparkline" height="20"></canvas>
+    <div class="sr-bar"><div id="bar-frz" class="sr-bar-fill fg" style="width:0%"></div></div>
+  </div>
+
+  <div class="sensor-row">
+    <div class="sr-top">
+      <div class="sr-left"><span class="sr-icon">💨</span><span class="sr-label">CO₂ Air Quality</span></div>
+      <span id="sv-co2" class="sr-val v-good">--</span>
+    </div>
+    <div class="sr-sub">ppm · room sensor</div>
+    <canvas id="spark-co2" class="sparkline" height="20"></canvas>
+    <div class="sr-bar"><div id="bar-co2" class="sr-bar-fill fg" style="width:0%"></div></div>
+  </div>
+</div>
+
+<!-- DECISION PANEL -->
+<div id="decision-panel" class="panel">
+  <div class="panel-title">🧠 Decision Layer · Recommendations</div>
+  <div id="rec-list"></div>
+</div>
+
+<!-- INFO BAR -->
+<div id="info-bar" class="panel">
+  <span>WASD · Move &nbsp;|&nbsp; ↑↓ · Up/Down &nbsp;|&nbsp; Shift · Fast &nbsp;|&nbsp; Drag · Orbit &nbsp;|&nbsp; Scroll · Zoom</span>
+  <span style="color:var(--border)">|</span>
+  <span>3DGS · Kerbl et al., 2023 &nbsp;·&nbsp; Digital Twin · Grieves, 2017</span>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import * as GaussianSplats3D from 'GaussianSplats3D';
+
+/* ── 3D SENSOR ANCHOR POSITIONS (real coordinates from your room) ── */
+const ANCHORS = [
+  { id:'temp', icon:'🌡️', label:'Temperature', valId:'sv-temp', color:'#3ecfb2', pos:[-2, 0.8, 1.5] },
+  { id:'occ',  icon:'👥', label:'Occupancy',   valId:'sv-occ',  color:'#3ecfb2', pos:[0.12, 0.49, 0.18] },
+  { id:'dev',  icon:'🔌', label:'TV Device',   valId:'sv-dev',  color:'#3ecfb2', pos:[-0.88, 0, 2.5] },
+  { id:'frz',  icon:'🧊', label:'Freezer',     valId:'sv-frz',  color:'#60c8f0', pos:[1.78, 0.64, 0.16] },
+  { id:'co2',  icon:'💨', label:'CO₂ / Air',   valId:'sv-co2',  color:'#a78bfa', pos:[0.12, 0.20, 0.18] },
+];
+
+/* ── BOOT ── */
+async function findSplat() {
+  for (const f of ['scene.splat','scene.ply','scene.ksplat']) {
+    try { const r = await fetch(f,{method:'HEAD'}); if (r.ok) return f; } catch(_) {}
+  }
+  return null;
+}
+
+async function boot() {
+  const el = {
+    overlay: document.getElementById('overlay'),
+    title:   document.getElementById('ov-title'),
+    sub:     document.getElementById('ov-sub'),
+    code:    document.getElementById('ov-code'),
+    spin:    document.getElementById('ov-spin'),
+    err:     document.getElementById('ov-err'),
+  };
+
+  const file = await findSplat();
+
+  if (!file) {
+    el.title.textContent = 'scene.splat not found';
+    el.sub.textContent   = 'Rename your splat file to scene.splat, put it in this folder, then refresh.';
+    el.code.style.display = 'none';
+    return;
+  }
+
+  el.title.textContent    = 'Loading 3D Scene…';
+  el.sub.textContent      = 'Processing ' + file + ' — this may take a moment.';
+  el.code.style.display   = 'none';
+  el.spin.style.display   = 'block';
+
+  try {
+    const viewer = new GaussianSplats3D.Viewer({
+      'cameraUp':              [0, -1, 0],
+      'initialCameraPosition': [0, 0.5, 2],
+      'initialCameraLookAt':   [0, 0.5, 0],
+
+      // These two MUST be false. By default this library tries to use
+      // SharedArrayBuffer, a browser feature that only works if the server
+      // sends special security headers (Cross-Origin-Opener-Policy /
+      // Cross-Origin-Embedder-Policy). Neither VS Code Live Server nor
+      // GitHub Pages can send those headers, so without this you'd get an
+      // error mentioning "SharedArrayBuffer" / "crossOriginIsolated" in
+      // both places. Setting these to false uses a slightly slower (but
+      // completely fine for one room) fallback that needs no special
+      // server config — works the same locally and once deployed.
+      'sharedMemoryForWorkers': false,
+      'gpuAcceleratedSort': false
+    });
+
+    await viewer.addSplatScene(file, {
+      'showLoadingUI': true,
+      'splatAlphaRemovalThreshold': 5
+    });
+
+    viewer.start();
+
+    el.overlay.classList.add('fade');
+    setTimeout(() => el.overlay.classList.add('gone'), 700);
+
+    startSensors();
+    startClock();
+    buildAnchors(viewer.camera);
+    setupMovement(viewer);
+
+  } catch(err) {
+    el.spin.style.display = 'none';
+    el.title.textContent  = 'Failed to load scene';
+    el.sub.textContent    = 'Make sure server.py is running and scene.splat is valid.';
+    el.code.style.display = 'none';
+    el.err.style.display  = 'block';
+    el.err.textContent    = String(err);
+  }
+}
+
+boot();
+
+/* ── 3D ANCHORED BADGES ── */
+function buildAnchors(camera) {
+  ANCHORS.forEach(a => {
+    // Badge
+    const badge = document.createElement('div');
+    badge.className = 'ab';
+    badge.id = 'ab-' + a.id;
+    badge.innerHTML = `
+      <div class="ab-card" style="--ac:${a.color}">
+        <span class="ab-icon">${a.icon}</span>
+        <div>
+          <div class="ab-label">${a.label}</div>
+          <div class="ab-val" id="abv-${a.id}">--</div>
+        </div>
+      </div>`;
+    document.body.appendChild(badge);
+
+    // Dot
+    const dot = document.createElement('div');
+    dot.className = 'ab-dot';
+    dot.id = 'abd-' + a.id;
+    dot.style.setProperty('--ac', a.color);
+    document.body.appendChild(dot);
+  });
+
+  const vec = new THREE.Vector3();
+
+  function loop() {
+    const W = window.innerWidth, H = window.innerHeight;
+    ANCHORS.forEach(a => {
+      const badge = document.getElementById('ab-'  + a.id);
+      const dot   = document.getElementById('abd-' + a.id);
+      const abv   = document.getElementById('abv-' + a.id);
+      const src   = document.getElementById(a.valId);
+
+      // Copy value + colour from summary panel
+      if (src && abv) {
+        abv.textContent = src.textContent;
+        abv.className   = 'ab-val' +
+          (src.classList.contains('v-bad')  ? ' b' :
+           src.classList.contains('v-warn') ? ' w' : '');
+      }
+
+      vec.set(a.pos[0], a.pos[1], a.pos[2]).project(camera);
+
+      // Behind camera — hide
+      if (vec.z > 1) {
+        badge.style.display = dot.style.display = 'none';
+        return;
+      }
+
+      const x = ( vec.x * 0.5 + 0.5) * W;
+      const y = (-vec.y * 0.5 + 0.5) * H;
+
+      badge.style.cssText += `;display:block;left:${x}px;top:${y}px`;
+      dot.style.cssText   += `;display:block;left:${x}px;top:${y+6}px`;
+    });
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+/* ── SENSOR SIMULATION ── */
+const HIST = 20;
+const hist = {
+  temp: Array.from({length:HIST}, () => 21 + Math.random()*3),
+  occ:  Array.from({length:HIST}, () => Math.floor(Math.random()*4)),
+  frz:  Array.from({length:HIST}, () => -22 + Math.random()*3),
+  co2:  Array.from({length:HIST}, () => 450 + Math.random()*150),
+};
+let tick=0, frzT=-21.5, comp=false;
+
+function gn(s) {
+  return s * Math.sqrt(-2*Math.log(Math.random())) * Math.cos(2*Math.PI*Math.random());
+}
+
+function simulate() {
+  tick++;
+  const h = ((tick % 144) / 144) * 24;
+  const temp = 22 + 4*Math.sin((h/24)*2*Math.PI) + gn(0.4);
+  const occ  = Math.max(0, Math.round(3 + 3*Math.sin(((h-9)/24)*2*Math.PI) + gn(1)));
+
+  const tw = occ>0 ? [0.1,0.2,0.7] : [0.55,0.3,0.15];
+  let r=Math.random(), acc=0, tvI=0;
+  for(let i=0;i<tw.length;i++){acc+=tw[i];if(r<acc){tvI=i;break;}}
+  const tvL = ['OFF','STANDBY','ON'][tvI];
+  const tvW = tvI===2 ? (80+Math.random()*20).toFixed(0)+'W' : tvI===1 ? '0.8W' : '0W';
+
+  if (frzT >= -18.5) comp = true;
+  if (frzT <= -24.0) comp = false;
+  frzT += comp ? -(0.3+Math.random()*0.3) : (0.08+Math.random()*0.1);
+  frzT += gn(0.05);
+  frzT = Math.max(-28, Math.min(-10, frzT));
+  const door = Math.random() < 0.05;
+  if (door) frzT = Math.min(-10, frzT + 2.5);
+
+  const co2 = Math.max(400, 420 + occ*55 + gn(18));
+
+  hist.temp.push(temp); hist.temp.shift();
+  hist.occ.push(occ);   hist.occ.shift();
+  hist.frz.push(frzT);  hist.frz.shift();
+  hist.co2.push(co2);   hist.co2.shift();
+
+  return {temp, occ, tvI, tvL, tvW, frzT, comp, door, co2};
+}
+
+/* ── SPARKLINES ── */
+function spark(id, data, color) {
+  const c = document.getElementById(id);
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const W = c.offsetWidth || 200, H = 20;
+  c.width = W; c.height = H;
+  ctx.clearRect(0,0,W,H);
+  const mn = Math.min(...data), mx = Math.max(...data), rng = mx-mn||1;
+  const pts = data.map((v,i) => [(i/(data.length-1))*W, H-((v-mn)/rng)*(H-4)-2]);
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0, color+'44'); g.addColorStop(1, color+'00');
+  ctx.beginPath(); ctx.moveTo(pts[0][0],H);
+  pts.forEach(([x,y]) => ctx.lineTo(x,y));
+  ctx.lineTo(pts[pts.length-1][0],H); ctx.closePath();
+  ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath();
+  pts.forEach(([x,y],i) => i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+/* ── RENDER ── */
+function s(id,txt,cls){ const e=document.getElementById(id); e.textContent=txt; e.className='sr-val '+cls; }
+function b(id,pct,cls){ const e=document.getElementById(id); e.style.width=Math.min(100,Math.max(0,pct))+'%'; e.className='sr-bar-fill '+cls; }
+function t(id,txt)    { const e=document.getElementById(id); if(e) e.textContent=txt; }
+function c(v,w,x,hi=true){ return hi?(v>=x?'v-bad':v>=w?'v-warn':'v-good'):(v<=x?'v-bad':v<=w?'v-warn':'v-good'); }
+function f(v,w,x,hi=true){ return hi?(v>=x?'fb':v>=w?'fw':'fg'):(v<=x?'fb':v<=w?'fw':'fg'); }
+function h(cls){ return cls==='v-bad'?'#e84d5a':cls==='v-warn'?'#f0a832':'#3ecfb2'; }
+
+function render(m) {
+  const tc = c(m.temp,25,27);
+  s('sv-temp', m.temp.toFixed(1)+' °C', tc);
+  b('bar-temp', (m.temp-16)/14*100, f(m.temp,25,27));
+  spark('spark-temp', hist.temp, h(tc));
+
+  s('sv-occ', m.occ+' person'+(m.occ!==1?'s':''), 'v-good');
+  b('bar-occ', m.occ/10*100, 'fg');
+  spark('spark-occ', hist.occ, '#3ecfb2');
+
+  const dc = m.tvI===2?'v-good':m.tvI===1?'v-warn':'v-bad';
+  s('sv-dev', m.tvL+' · '+m.tvW, dc);
+  b('bar-dev', m.tvI===2?90:m.tvI===1?12:2, m.tvI===2?'fg':m.tvI===1?'fw':'fb');
+  t('ss-dev', 'Smart plug · '+m.tvW+' draw');
+
+  const isBad=m.frzT>-18, isWrn=m.frzT>-20&&!isBad;
+  const fc = isBad?'v-bad':isWrn?'v-warn':'v-good';
+  s('sv-frz', m.frzT.toFixed(1)+' °C', fc);
+  b('bar-frz', (m.frzT+28)/18*100, isBad?'fb':isWrn?'fw':'fg');
+  t('ss-frz', m.door ? '🚪 Door open!' : m.comp ? '❄️ Compressor ON' : 'Compressor OFF');
+  spark('spark-frz', hist.frz, h(fc));
+
+  const cc = c(m.co2,800,1000);
+  s('sv-co2', m.co2.toFixed(0)+' ppm', cc);
+  b('bar-co2', Math.min(m.co2,1200)/1200*100, f(m.co2,800,1000));
+  spark('spark-co2', hist.co2, h(cc));
+}
+
+/* ── DECISIONS ── */
+function decisions(m) {
+  const recs = [];
+
+  if (m.temp>26 && m.occ>0)
+    recs.push({t:'bad',i:'🌡️',ti:'Thermal Comfort Alert',
+      d:'Room '+m.temp.toFixed(1)+'°C with '+m.occ+' occupant(s). Ventilation recommended.',cf:94});
+  else if (m.temp>24)
+    recs.push({t:'warn',i:'🌡️',ti:'Temperature Rising',
+      d:'Room at '+m.temp.toFixed(1)+'°C — approaching 24°C comfort limit.',cf:78});
+
+  if (m.tvI===2 && m.occ===0)
+    recs.push({t:'bad',i:'🔌',ti:'Energy Waste Detected',
+      d:'TV ON ('+m.tvW+') while room is unoccupied. Auto-shutdown recommended.',cf:97});
+  else if (m.tvI===1 && m.occ===0)
+    recs.push({t:'warn',i:'🔌',ti:'Standby Power Active',
+      d:'Room empty, TV in standby ('+m.tvW+'). Switch off at mains.',cf:85});
+
+  if (m.door)
+    recs.push({t:'bad',i:'🧊',ti:'Freezer Door Open',
+      d:'Temperature rising to '+m.frzT.toFixed(1)+'°C. Close immediately.',cf:99});
+  else if (m.frzT>-18)
+    recs.push({t:'bad',i:'🧊',ti:'Freezer Temp Critical',
+      d:'Freezer at '+m.frzT.toFixed(1)+'°C — above -18°C safe limit.',cf:96});
+
+  if (m.co2>1000)
+    recs.push({t:'bad',i:'💨',ti:'Poor Air Quality',
+      d:'CO₂ '+m.co2.toFixed(0)+' ppm — above WHO 1000 ppm limit. Open window.',cf:91});
+  else if (m.co2>800)
+    recs.push({t:'warn',i:'💨',ti:'Air Quality Declining',
+      d:'CO₂ '+m.co2.toFixed(0)+' ppm — approaching threshold.',cf:72});
+
+  if (recs.length===0) recs.push({t:'good',i:'✅',ti:'All Systems Normal',
+    d:'All sensors within optimal ranges. No action required.',cf:100});
+  if (recs.length===1) recs.push({t:'good',i:'✅',ti:'Energy Usage Optimal',
+    d:'Device states match occupancy. No waste detected.',cf:88});
+
+  document.getElementById('rec-list').innerHTML = recs.map(r => `
+    <div class="rec-item">
+      <div class="ri-icon ri-${r.t}">${r.i}</div>
+      <div class="rec-body">
+        <div class="rec-title">${r.ti}</div>
+        <div class="rec-desc">${r.d}</div>
+        <span class="rec-conf">CONFIDENCE ${r.cf}%</span>
+      </div>
+    </div>`).join('');
+}
+
+
+/* ── CUSTOM WASD + ARROW KEY CONTROLS ── */
+function setupMovement(viewer) {
+  const camera   = viewer.camera;
+  // gaussian-splats-3d exposes controls as viewer.controls or viewer.orbitControls
+  const controls = viewer.controls || viewer.orbitControls || null;
+
+  const keys = {};
+
+  // Track key state
+  window.addEventListener('keydown', e => {
+    const tracked = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ShiftLeft','ShiftRight'];
+    if (tracked.includes(e.code)) {
+      keys[e.code] = true;
+      e.preventDefault(); // stop page scrolling
+    }
+  });
+  window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+  const SPEED      = 0.04;  // normal speed per frame
+  const FAST_SPEED = 0.14;  // shift speed per frame
+
+  const fwd   = new THREE.Vector3();
+  const right = new THREE.Vector3();
+  const delta = new THREE.Vector3();
+
+  function moveTick() {
+    requestAnimationFrame(moveTick);
+
+    const anyMove =
+      keys['KeyW'] || keys['KeyS'] || keys['KeyA'] || keys['KeyD'] ||
+      keys['ArrowUp'] || keys['ArrowDown'];
+    if (!anyMove) return;
+
+    const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? FAST_SPEED : SPEED;
+
+    // Forward direction (flat — no vertical drift on W/S)
+    camera.getWorldDirection(fwd);
+
+    // Right direction
+    right.crossVectors(fwd, camera.up).normalize();
+
+    delta.set(0, 0, 0);
+
+    if (keys['KeyW']) delta.addScaledVector(fwd,    speed);
+    if (keys['KeyS']) delta.addScaledVector(fwd,   -speed);
+    if (keys['KeyA']) delta.addScaledVector(right,  -speed);
+    if (keys['KeyD']) delta.addScaledVector(right,   speed);
+
+    // Arrow Up/Down — move along world Y
+    // cameraUp is [0,-1,0] so "visual up" = negative Y in world space
+    if (keys['ArrowUp'])   delta.y -= speed;
+    if (keys['ArrowDown']) delta.y += speed;
+
+    // Move camera
+    camera.position.add(delta);
+
+    // Also shift the orbit target so drag-to-orbit still works correctly
+    if (controls && controls.target) {
+      controls.target.add(delta);
+      controls.update();
+    }
+  }
+
+  moveTick();
+}
+
+/* ── LOOPS ── */
+function update() { const m=simulate(); render(m); decisions(m); }
+function startSensors() { update(); setInterval(update, 3000); }
+function startClock() {
+  const tick = () => document.getElementById('tb-clock').textContent =
+    new Date().toLocaleTimeString('fi-FI');
+  tick(); setInterval(tick, 1000);
+}
+</script>
+</body>
+</html>

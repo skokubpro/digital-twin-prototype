@@ -1,7 +1,7 @@
 
 # 🏠 Living Room - Digital Twin  Prototype
 
-A photorealistic, browser-based **digital twin** of a real residential living room, built using **3D Gaussian Splatting** for the spatial reconstruction and a simulated **IoT sensor layer** for real-time environmental monitoring and automated decision support.
+A browser-based digital twin of a real living room built using **3D Gaussian Splatting**. The project combines a **photorealistic 3D reconstruction** with **simulated IoT sensors** and a **simple decision engine** that provides real-time recommendations for comfort, energy efficiency, and safety.
 
 ---
 

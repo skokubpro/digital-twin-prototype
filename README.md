@@ -164,7 +164,7 @@ digital-twin-prototype/
 │                             still loading the same Gaussian Splat data.
 ├── README.md               ← Project documentation
 └── docs/
-    └── writeup.pdf         ← 1-page research write-up
+    └── From Physical Space to Service Platform.pdf         ← 1-page research write-up
 ```
 
 ---

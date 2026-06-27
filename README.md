@@ -1,5 +1,5 @@
-
-# 🏠 Living Room - Digital Twin  Prototype
+# 🏠 From Physical Space to Service Platform: A Browser-Based Digital Twin Prototype with Live Sensor Overlays and Decision Support
+ 
 
 A browser-based digital twin of a real living room built using **3D Gaussian Splatting**. The project combines a **photorealistic 3D reconstruction** with **simulated IoT sensors** and a **simple decision engine** that provides real-time recommendations for comfort, energy efficiency, and safety.
 
@@ -12,8 +12,10 @@ A browser-based digital twin of a real living room built using **3D Gaussian Spl
 
 ---
 ## 📹 Walkthrough Video
-A 5-minute screen-recorded walkthrough of the prototype is available on YouTube. The video demonstrates the 3D reconstruction, live sensor overlays, and decision layer in action.
-▶ [Watch the Walkthrough](https://youtu.be/UGPBrI0SpQg)
+A short screen-recorded walkthrough of the prototype is available on YouTube. The video demonstrates the 3D reconstruction, live sensor overlays, and decision layer in action.
+▶ [Watch the video](https://youtu.be/UGPBrI0SpQg)
+
+---
 ## 🧩 Project Components
 
 

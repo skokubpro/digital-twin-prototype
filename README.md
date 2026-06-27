@@ -11,7 +11,9 @@ A browser-based digital twin of a real living room built using **3D Gaussian Spl
 <img width="1000"  alt="Screenshot 2026-06-26 023223" src="https://github.com/user-attachments/assets/4ca6b377-7d61-4090-80b0-71681729e0e7" />
 
 ---
-
+## 📹 Walkthrough Video
+A 5-minute screen-recorded walkthrough of the prototype is available on YouTube. The video demonstrates the 3D reconstruction, live sensor overlays, and decision layer in action.
+▶ [Watch the Walkthrough](https://youtu.be/UGPBrI0SpQg)
 ## 🧩 Project Components
 
 
